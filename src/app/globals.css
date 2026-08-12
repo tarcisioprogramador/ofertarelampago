@@ -1,0 +1,134 @@
+@import "tailwindcss";
+
+@theme {
+  --font-sans: var(--font-inter), ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --font-display: var(--font-sora), var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+
+  /* Marca: laranja relâmpago */
+  --color-brand-50: #fff6ec;
+  --color-brand-100: #ffead1;
+  --color-brand-200: #ffd1a3;
+  --color-brand-300: #ffb26b;
+  --color-brand-400: #ff8c2f;
+  --color-brand-500: #ff6b00;
+  --color-brand-600: #ef5c00;
+  --color-brand-700: #c64a03;
+  --color-brand-800: #9d3b0b;
+  --color-brand-900: #7e330c;
+
+  /* Tinta */
+  --color-ink-50: #f6f8fb;
+  --color-ink-100: #eceff5;
+  --color-ink-200: #d6dce8;
+  --color-ink-300: #b1bccf;
+  --color-ink-400: #8492ad;
+  --color-ink-500: #62708c;
+  --color-ink-600: #4c5872;
+  --color-ink-700: #3e475d;
+  --color-ink-800: #262d3f;
+  --color-ink-900: #171d2c;
+  --color-ink-950: #0b1220;
+
+  /* Flash (ofertas relâmpago) */
+  --color-flash-500: #e11d48;
+  --color-flash-600: #be123c;
+  --color-flash-700: #9f1239;
+
+  --radius-4xl: 2rem;
+
+  --shadow-card: 0 1px 2px rgb(11 18 32 / 0.04), 0 4px 16px rgb(11 18 32 / 0.06);
+  --shadow-card-hover: 0 2px 4px rgb(11 18 32 / 0.06), 0 12px 32px rgb(11 18 32 / 0.12);
+
+  --animate-fade-up: fade-up 0.5s ease both;
+  --animate-marquee: marquee 30s linear infinite;
+
+  @keyframes fade-up {
+    from {
+      opacity: 0;
+      transform: translateY(12px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+  @keyframes marquee {
+    from {
+      transform: translateX(0);
+    }
+    to {
+      transform: translateX(-50%);
+    }
+  }
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  @apply bg-ink-50 text-ink-900 antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+::selection {
+  background: var(--color-brand-500);
+  color: #fff;
+}
+
+/* Ancoragem para navegação com header fixo */
+section[id] {
+  scroll-margin-top: 6rem;
+}
+
+/* Tipografia de artigos (markdown leve) */
+.prose-editorial h2 {
+  font-family: var(--font-display);
+  font-size: 1.5rem;
+  font-weight: 700;
+  margin: 2rem 0 0.75rem;
+  color: var(--color-ink-950);
+}
+.prose-editorial h3 {
+  font-family: var(--font-display);
+  font-size: 1.15rem;
+  font-weight: 700;
+  margin: 1.5rem 0 0.5rem;
+  color: var(--color-ink-900);
+}
+.prose-editorial p {
+  margin: 0.85rem 0;
+  line-height: 1.75;
+  color: var(--color-ink-700);
+}
+.prose-editorial ul {
+  margin: 0.85rem 0;
+  padding-left: 1.25rem;
+  list-style: disc;
+  color: var(--color-ink-700);
+}
+.prose-editorial ol {
+  margin: 0.85rem 0;
+  padding-left: 1.25rem;
+  list-style: decimal;
+  color: var(--color-ink-700);
+}
+.prose-editorial li {
+  margin: 0.35rem 0;
+  line-height: 1.7;
+}
+.prose-editorial strong {
+  color: var(--color-ink-950);
+  font-weight: 600;
+}
+.prose-editorial a {
+  color: var(--color-brand-600);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+/* Scrollbar discreta */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-ink-300) transparent;
+}

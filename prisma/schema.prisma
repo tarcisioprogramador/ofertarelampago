@@ -1,0 +1,358 @@
+// Schema Prisma — Oferta Relâmpago
+// Banco Postgres na nuvem (Neon) — usado em dev e produção.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ─── Identidade ───────────────────────────────────────────────────────────
+
+model User {
+  id           String       @id @default(cuid())
+  email        String       @unique
+  name         String?
+  passwordHash String?
+  role         String       @default("USER") // ADMIN | EDITOR | USER
+  active       Boolean      @default(true)
+  createdAt    DateTime     @default(now())
+}
+
+model Author {
+  id        String    @id @default(cuid())
+  name      String
+  slug      String    @unique
+  bio       String?
+  specialty String?
+  role      String? // "Redator", "Editor", "Revisor"
+  avatarUrl String?
+  articles  Article[]
+}
+
+// ─── Catálogo ─────────────────────────────────────────────────────────────
+
+model Brand {
+  id           String   @id @default(cuid())
+  name         String
+  slug         String   @unique
+  description  String?
+  logoUrl      String?
+  website      String?
+  products     Product[]
+  createdAt    DateTime @default(now())
+}
+
+model Category {
+  id                String               @id @default(cuid())
+  name              String
+  slug              String              @unique
+  description       String?
+  intro             String?
+  seoTitle          String?
+  seoDescription    String?
+  imageUrl          String?
+  order             Int                  @default(0)
+  parentId          String?
+  parent            Category?            @relation("CategoryTree", fields: [parentId], references: [id])
+  children          Category[]           @relation("CategoryTree")
+  products          Product[]
+  attributeDefs     AttributeDefinition[]
+  faqs              Faq[]
+  articles          Article[]
+  createdAt         DateTime             @default(now())
+}
+
+model Product {
+  id                String                  @id @default(cuid())
+  name              String
+  slug              String                  @unique
+  brandId           String
+  brand             Brand                   @relation(fields: [brandId], references: [id])
+  categoryId        String
+  category          Category                @relation(fields: [categoryId], references: [id])
+  summary           String?
+  description       String?
+  imageUrl          String?
+  releaseDate       DateTime?
+  rating            Float                   @default(0)
+  reviewCount       Int                     @default(0)
+  featured          Boolean                 @default(false)
+  isNew             Boolean                 @default(false)
+  lastPriceCheck    DateTime?
+  lastStockCheck    DateTime?
+  lastContentUpdate DateTime?
+  pros              ProsCons[]
+  attributes        ProductAttributeValue[]
+  images            ProductImage[]
+  offers            Offer[]
+  priceHistory      PriceHistory[]
+  reviews           Review[]
+  articleLinks      ArticleProduct[]
+  faqs              ProductFAQ[]
+  alerts            PriceAlert[]
+  comparisonItems   ComparisonItem[]
+  deals             Deal[]
+  tags              ProductTag[]
+  createdAt         DateTime                @default(now())
+  updatedAt         DateTime                @updatedAt
+}
+
+// Galeria de fotos do produto
+model ProductImage {
+  id        String  @id @default(cuid())
+  productId String
+  product   Product @relation(fields: [productId], references: [id])
+  url       String
+  alt       String?
+  order     Int     @default(0)
+
+  @@index([productId])
+}
+
+// Atributos dinâmicos — permite criar novos atributos SEM alterar o schema
+model AttributeDefinition {
+  id         String                 @id @default(cuid())
+  categoryId String
+  category   Category               @relation(fields: [categoryId], references: [id])
+  name       String                 // "Tela", "Processador"...
+  key        String                 // "screen", "processor"...
+  unit       String?
+  filterable Boolean                @default(true)
+  type       String                 @default("text") // text | number | boolean
+  order      Int                    @default(0)
+  values     ProductAttributeValue[]
+}
+
+model ProductAttributeValue {
+  id          String              @id @default(cuid())
+  productId   String
+  product     Product             @relation(fields: [productId], references: [id])
+  attributeId String
+  attribute   AttributeDefinition @relation(fields: [attributeId], references: [id])
+  value       String
+
+  @@unique([productId, attributeId])
+}
+
+model ProsCons {
+  id        String  @id @default(cuid())
+  productId String
+  product   Product @relation(fields: [productId], references: [id])
+  type      String  // "PRO" | "CON"
+  text      String
+  order     Int     @default(0)
+}
+
+// ─── Comércio ─────────────────────────────────────────────────────────────
+
+model Store {
+  id                String   @id @default(cuid())
+  name              String
+  slug              String   @unique
+  url               String?
+  logoUrl           String?
+  affiliateEnabled  Boolean  @default(false)
+  affiliateUrl      String?  // Link de afiliado do dono (ex: perfil do Mercado Livre)
+  shippingNote      String?
+  offers            Offer[]
+  coupons           Coupon[]
+  priceHistory      PriceHistory[]
+  deals             Deal[]
+  createdAt         DateTime @default(now())
+}
+
+// Oferta normal de produto em uma loja
+model Offer {
+  id        String    @id @default(cuid())
+  productId String
+  product   Product   @relation(fields: [productId], references: [id])
+  storeId   String
+  store     Store     @relation(fields: [storeId], references: [id])
+  price     Float
+  oldPrice  Float?
+  url       String
+  couponCode String?
+  shipping  String?
+  isBest    Boolean   @default(false)
+  active    Boolean   @default(true)
+  lastCheckedAt DateTime @default(now())
+  updatedAt DateTime  @updatedAt
+
+  @@index([productId])
+}
+
+// Campanha de oferta relâmpago (com data de início/fim e status)
+model Deal {
+  id        String   @id @default(cuid())
+  title     String
+  productId String
+  product   Product  @relation(fields: [productId], references: [id])
+  storeId   String
+  store     Store    @relation(fields: [storeId], references: [id])
+  oldPrice  Float
+  price     Float
+  url       String
+  couponCode String?
+  imageUrl  String?
+  startAt   DateTime
+  endAt     DateTime
+  status    String   @default("SCHEDULED") // SCHEDULED | ACTIVE | EXPIRED
+  createdAt DateTime @default(now())
+
+  @@index([status])
+}
+
+model Coupon {
+  id          String    @id @default(cuid())
+  storeId     String
+  store       Store     @relation(fields: [storeId], references: [id])
+  code        String
+  description String?
+  discount    String?
+  url         String?
+  expiresAt   DateTime?
+  active      Boolean   @default(true)
+  createdAt   DateTime  @default(now())
+}
+
+model PriceHistory {
+  id         String   @id @default(cuid())
+  productId  String
+  product    Product  @relation(fields: [productId], references: [id])
+  storeId    String
+  store      Store    @relation(fields: [storeId], references: [id])
+  price      Float
+  recordedAt DateTime @default(now())
+
+  @@index([productId, recordedAt])
+}
+
+// ─── Avaliação / conteúdo ────────────────────────────────────────────────
+
+model Review {
+  id         String   @id @default(cuid())
+  productId  String
+  product    Product  @relation(fields: [productId], references: [id])
+  authorName String
+  title      String?
+  content    String
+  rating     Int
+  pros       String?
+  cons       String?
+  verified   Boolean  @default(false)
+  createdAt  DateTime @default(now())
+
+  @@index([productId])
+}
+
+model Article {
+  id            String          @id @default(cuid())
+  title         String
+  slug          String          @unique
+  excerpt       String?
+  content       String
+  type          String          @default("BLOG") // BLOG | GUIDE | NEWS
+  categoryId    String?
+  category      Category?       @relation(fields: [categoryId], references: [id])
+  authorId      String?
+  author        Author?         @relation(fields: [authorId], references: [id])
+  coverImage    String?
+  publishedAt   DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
+  published     Boolean         @default(true)
+  seoTitle      String?
+  seoDescription String?
+  products      ArticleProduct[]
+
+  @@index([type, published])
+}
+
+model ArticleProduct {
+  id        String  @id @default(cuid())
+  articleId String
+  article   Article @relation(fields: [articleId], references: [id])
+  productId String
+  product   Product @relation(fields: [productId], references: [id])
+
+  @@unique([articleId, productId])
+}
+
+model Comparison {
+  id        String           @id @default(cuid())
+  slug      String           @unique
+  title     String
+  intro     String?
+  seoTitle  String?
+  seoDescription String?
+  items     ComparisonItem[]
+  createdAt DateTime         @default(now())
+  updatedAt DateTime         @updatedAt
+}
+
+model ComparisonItem {
+  id           String     @id @default(cuid())
+  comparisonId String
+  comparison   Comparison @relation(fields: [comparisonId], references: [id])
+  productId    String
+  product      Product    @relation(fields: [productId], references: [id])
+  order        Int        @default(0)
+
+  @@unique([comparisonId, productId])
+}
+
+model Faq {
+  id         String    @id @default(cuid())
+  categoryId String?
+  category   Category? @relation(fields: [categoryId], references: [id])
+  question   String
+  answer     String
+  order      Int       @default(0)
+}
+
+model ProductFAQ {
+  id        String  @id @default(cuid())
+  productId String
+  product   Product @relation(fields: [productId], references: [id])
+  question  String
+  answer    String
+  order     Int     @default(0)
+}
+
+// ─── Tags SEO ────────────────────────────────────────────────────────────────
+
+model Tag {
+  id       String       @id @default(cuid())
+  name     String       @unique
+  slug     String       @unique
+  products ProductTag[]
+}
+
+model ProductTag {
+  id        String  @id @default(cuid())
+  productId String
+  product   Product @relation(fields: [productId], references: [id])
+  tagId     String
+  tag       Tag     @relation(fields: [tagId], references: [id])
+
+  @@unique([productId, tagId])
+  @@index([tagId])
+}
+
+// ─── Usuário / alertas ────────────────────────────────────────────────────
+
+model PriceAlert {
+  id           String   @id @default(cuid())
+  productId    String
+  product      Product  @relation(fields: [productId], references: [id])
+  email        String?
+  whatsapp     String?
+  desiredPrice Float
+  active       Boolean  @default(true)
+  createdAt    DateTime @default(now())
+
+  @@index([productId])
+}
