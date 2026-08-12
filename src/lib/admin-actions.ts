@@ -407,6 +407,13 @@ export async function updateCategory(id: string, data: FormData) {
   revalidatePath("/");
 }
 
+export async function deleteCategory(id: string) {
+  await guard();
+  await prisma.category.delete({ where: { id } });
+  revalidatePath("/admin/categorias");
+  revalidatePath("/");
+}
+
 // ─── Marcas ──────────────────────────────────────────────────────────────────
 
 export async function createBrand(data: FormData) {
@@ -416,6 +423,13 @@ export async function createBrand(data: FormData) {
   await prisma.brand.create({
     data: { name, slug: pick(data, "slug") || slugify(name), description: pick(data, "description"), website: pick(data, "website") },
   });
+  revalidatePath("/admin/marcas");
+  revalidatePath("/");
+}
+
+export async function deleteBrand(id: string) {
+  await guard();
+  await prisma.brand.delete({ where: { id } });
   revalidatePath("/admin/marcas");
   revalidatePath("/");
 }
@@ -437,6 +451,13 @@ export async function createStore(data: FormData) {
     },
   });
   revalidatePath("/admin/lojas");
+}
+
+export async function deleteStore(id: string) {
+  await guard();
+  await prisma.store.delete({ where: { id } });
+  revalidatePath("/admin/lojas");
+  revalidatePath("/");
 }
 
 export async function createCoupon(data: FormData) {
@@ -479,6 +500,12 @@ export async function createAuthor(data: FormData) {
       role: pick(data, "role"),
     },
   });
+  revalidatePath("/admin/autores");
+}
+
+export async function deleteAuthor(id: string) {
+  await guard();
+  await prisma.author.delete({ where: { id } });
   revalidatePath("/admin/autores");
 }
 

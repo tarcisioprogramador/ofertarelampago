@@ -1,6 +1,6 @@
 import { prisma } from "@/lib/db";
-import { AdminPageHeader, AdminCard, Field, inputCls, SubmitButton, Badge } from "@/components/admin/ui";
-import { createStore } from "@/lib/admin-actions";
+import { AdminPageHeader, AdminCard, Field, inputCls, SubmitButton, Badge, DangerButton } from "@/components/admin/ui";
+import { createStore, deleteStore } from "@/lib/admin-actions";
 
 export const dynamic = "force-dynamic";
 
@@ -48,6 +48,7 @@ export default async function AdminStoresPage() {
                 <th className="px-4 py-3 font-bold">Ofertas</th>
                 <th className="px-4 py-3 font-bold">Cupons</th>
                 <th className="px-4 py-3 font-bold">Frete</th>
+                <th className="px-4 py-3" />
               </tr>
             </thead>
             <tbody>
@@ -67,6 +68,13 @@ export default async function AdminStoresPage() {
                   <td className="px-4 py-3 text-ink-600">{s._count.offers}</td>
                   <td className="px-4 py-3 text-ink-600">{s._count.coupons}</td>
                   <td className="px-4 py-3 text-xs text-ink-500">{s.shippingNote ?? "—"}</td>
+                  <td className="px-4 py-3 text-right">
+                    {s._count.offers === 0 && s._count.coupons === 0 && (
+                      <form action={deleteStore.bind(null, s.id)} onSubmit={(e) => { if (!confirm("Excluir esta loja?")) e.preventDefault(); }}>
+                        <DangerButton>Excluir</DangerButton>
+                      </form>
+                    )}
+                  </td>
                 </tr>
               ))}
             </tbody>

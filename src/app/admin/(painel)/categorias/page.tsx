@@ -1,6 +1,6 @@
 import { prisma } from "@/lib/db";
-import { AdminPageHeader, AdminCard, Field, inputCls, SubmitButton } from "@/components/admin/ui";
-import { updateCategory } from "@/lib/admin-actions";
+import { AdminPageHeader, AdminCard, Field, inputCls, SubmitButton, DangerButton } from "@/components/admin/ui";
+import { updateCategory, deleteCategory } from "@/lib/admin-actions";
 
 export const dynamic = "force-dynamic";
 
@@ -27,6 +27,11 @@ export default async function AdminCategoriesPage() {
                   {c._count.products} produtos · {c._count.faqs} FAQs · {c.attributeDefs.length} atributos
                 </p>
               </div>
+              {c._count.products === 0 && (
+                <form action={deleteCategory.bind(null, c.id)} onSubmit={(e) => { if (!confirm("Excluir esta categoria?")) e.preventDefault(); }}>
+                  <DangerButton>Excluir</DangerButton>
+                </form>
+              )}
             </div>
             <div className="mb-4 flex flex-wrap gap-1.5">
               {c.attributeDefs.map((a) => (

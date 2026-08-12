@@ -1,14 +1,14 @@
 import Link from "next/link";
 import Image from "next/image";
 import { notFound } from "next/navigation";
-import { ArrowUpRight, Check, GitCompareArrows, Minus, Star, X } from "lucide-react";
+import { Check, GitCompareArrows, Minus, Star, X } from "lucide-react";
 import { prisma } from "@/lib/db";
 import { buildMetadata } from "@/lib/seo";
 import { comparisonJsonLd } from "@/lib/jsonld";
 import { JsonLd } from "@/components/jsonld";
 import { Breadcrumbs } from "@/components/breadcrumbs";
 import { RatingStars } from "@/components/rating-stars";
-import { formatBRL, affiliateUrl } from "@/lib/utils";
+import { formatBRL } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
 
@@ -124,9 +124,6 @@ export default async function ComparisonPage({ params }: Props) {
                           <span className={`font-display text-base font-extrabold ${isLowest ? "text-emerald-600" : "text-ink-950"}`}>{formatBRL(price, 0)}</span>
                         </p>
                       )}
-                      <a href={affiliateUrl(p.offers[0]?.url)} target="_blank" rel="noopener nofollow sponsored" className="mt-2 inline-flex items-center gap-1 rounded-lg bg-ink-950 px-3 py-1.5 text-[11px] font-bold text-white transition-colors hover:bg-brand-600">
-                        Ver oferta <ArrowUpRight className="size-3" aria-hidden />
-                      </a>
                     </th>
                   );
                 })}
@@ -161,7 +158,7 @@ export default async function ComparisonPage({ params }: Props) {
           </table>
         </div>
 
-        <p className="mt-2 text-[11px] text-ink-400">Comprando pelos links, podemos receber comissão sem custo para você. Preços podem variar a qualquer momento.</p>
+        <p className="mt-2 text-[11px] text-ink-400">Preços podem variar a qualquer momento.</p>
 
         {/* Prós e contras de cada um */}
         <section className="mt-12">

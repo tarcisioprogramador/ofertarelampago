@@ -1,6 +1,6 @@
 import { prisma } from "@/lib/db";
-import { AdminPageHeader, AdminCard, Field, inputCls, SubmitButton } from "@/components/admin/ui";
-import { createBrand } from "@/lib/admin-actions";
+import { AdminPageHeader, AdminCard, Field, inputCls, SubmitButton, DangerButton } from "@/components/admin/ui";
+import { createBrand, deleteBrand } from "@/lib/admin-actions";
 
 export const dynamic = "force-dynamic";
 
@@ -39,6 +39,7 @@ export default async function AdminBrandsPage() {
                 <th className="px-4 py-3 font-bold">Marca</th>
                 <th className="px-4 py-3 font-bold">Slug</th>
                 <th className="px-4 py-3 font-bold">Produtos</th>
+                <th className="px-4 py-3" />
               </tr>
             </thead>
             <tbody>
@@ -47,6 +48,13 @@ export default async function AdminBrandsPage() {
                   <td className="px-4 py-3 font-semibold text-ink-900">{b.name}</td>
                   <td className="px-4 py-3 font-mono text-xs text-ink-500">{b.slug}</td>
                   <td className="px-4 py-3 text-ink-600">{b._count.products}</td>
+                  <td className="px-4 py-3 text-right">
+                    {b._count.products === 0 && (
+                      <form action={deleteBrand.bind(null, b.id)} onSubmit={(e) => { if (!confirm("Excluir esta marca?")) e.preventDefault(); }}>
+                        <DangerButton>Excluir</DangerButton>
+                      </form>
+                    )}
+                  </td>
                 </tr>
               ))}
             </tbody>

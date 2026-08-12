@@ -1,7 +1,7 @@
 import Link from "next/link";
 import Image from "next/image";
 import { notFound } from "next/navigation";
-import { ArrowRight, ArrowUpRight, BadgePercent, BellRing, CalendarDays, Check, Copy, GitCompareArrows, Minus, Plus, ShoppingBag, Star, Truck, X, Zap } from "lucide-react";
+import { ArrowRight, BadgePercent, BellRing, CalendarDays, Check, Copy, GitCompareArrows, Minus, Plus, ShoppingBag, Star, Truck, X, Zap } from "lucide-react";
 import { prisma } from "@/lib/db";
 import { buildMetadata } from "@/lib/seo";
 import { productJsonLd } from "@/lib/jsonld";
@@ -15,7 +15,7 @@ import { AlertPriceForm } from "@/components/alert-price-form";
 import { FaqAccordion } from "@/components/faq-accordion";
 import { SectionHeading } from "@/components/section-heading";
 import { ProductGallery } from "@/components/product-gallery";
-import { formatBRL, formatDate, percentOff, affiliateUrl } from "@/lib/utils";
+import { formatBRL, formatDate, percentOff } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
 
@@ -91,11 +91,6 @@ export default async function ProductPage({ params }: Props) {
   const bestOffer = activeOffers[0] ?? null;
   const noActiveOffer = prod.offers.length > 0 && activeOffers.length === 0;
 
-  // Link do botão "Comprar": prioriza a URL da oferta do PRODUTO com tracking de afiliado
-  // (ex.: mercadolivre.com.br/.../p/MLB...?matt_tool=...). O link do perfil da loja só é
-  // usado como último recurso quando a oferta não tem URL própria.
-  const buyUrl = (offer: (typeof prod.offers)[number] | null | undefined) =>
-    (offer?.url ? affiliateUrl(offer.url) : "") || offer?.store.affiliateUrl || "#";
   const productPath = `/${category}/${brand}/${prod.slug}/`;
   const discounts = prod.offers.map((o) => percentOff(o.oldPrice, o.price)).filter((d): d is number => d !== null);
   const maxDiscount = discounts.length ? Math.max(...discounts) : 0;
@@ -150,7 +145,7 @@ export default async function ProductPage({ params }: Props) {
           brand: prod.brand.name,
           category: prod.category.name,
           url: productPath,
-          offers: prod.offers.filter((o) => o.active).map((o) => ({ price: o.price, oldPrice: o.oldPrice, storeName: o.store.name, url: affiliateUrl(o.url), couponCode: o.couponCode, updatedAt: o.updatedAt })),
+          offers: prod.offers.filter((o) => o.active).map((o) => ({ price: o.price, oldPrice: o.oldPrice, storeName: o.store.name, url: o.url || "#", couponCode: o.couponCode, updatedAt: o.updatedAt })),
           rating: prod.rating,
           reviewCount: prod.reviewCount,
           reviews: prod.reviews.slice(0, 5).map((r) => ({ author: r.authorName, rating: r.rating, title: r.title, content: r.content, date: r.createdAt })),
@@ -215,14 +210,6 @@ export default async function ProductPage({ params }: Props) {
                   <Link href="/ofertas-relampago/" className="inline-flex items-center gap-2 rounded-xl bg-ink-950 px-5 py-3 text-sm font-bold text-white transition-colors hover:bg-brand-600">
                     <Zap className="size-4" aria-hidden /> Ver ofertas atuais
                   </Link>
-                  <a
-                    href={buyUrl(prod.offers[0])}
-                    target="_blank"
-                    rel="noopener nofollow sponsored"
-                    className="inline-flex items-center gap-2 rounded-xl border border-ink-300 bg-white px-5 py-3 text-sm font-bold text-ink-800 transition-colors hover:border-brand-400 hover:text-brand-600"
-                  >
-                    <ShoppingBag className="size-4" aria-hidden /> Comprar
-                  </a>
                 </div>
               </div>
             ) : bestOffer ? (
@@ -254,14 +241,6 @@ export default async function ProductPage({ params }: Props) {
                 <div className="mt-4 flex flex-wrap gap-2.5">
                   <a href="#ofertas" className="inline-flex items-center gap-2 rounded-xl bg-brand-500 px-5 py-3 text-sm font-bold text-white transition-colors hover:bg-brand-600">
                     Ver todas as ofertas <ArrowRight className="size-4" aria-hidden />
-                  </a>
-                  <a
-                    href={buyUrl(bestOffer)}
-                    target="_blank"
-                    rel="noopener nofollow sponsored"
-                    className="inline-flex items-center gap-2 rounded-xl border border-ink-300 bg-white px-5 py-3 text-sm font-bold text-ink-800 transition-colors hover:border-brand-400 hover:text-brand-600"
-                  >
-                    <ShoppingBag className="size-4" aria-hidden /> Comprar
                   </a>
                   <a href="#alerta-preco" className="inline-flex items-center gap-2 rounded-xl border border-ink-300 bg-white px-5 py-3 text-sm font-bold text-ink-800 transition-colors hover:border-brand-400 hover:text-brand-600">
                     <BellRing className="size-4" aria-hidden /> Criar alerta de preço
@@ -324,14 +303,9 @@ export default async function ProductPage({ params }: Props) {
                         <td className="px-5 py-4 text-xs text-ink-400">{formatDate(o.updatedAt)}</td>
                         <td className="px-5 py-4 text-right">
                           {o.active ? (
-                            <a
-                              href={affiliateUrl(o.url)}
-                              target="_blank"
-                              rel="noopener nofollow sponsored"
-                              className="inline-flex items-center gap-1.5 rounded-lg bg-ink-950 px-3.5 py-2 text-xs font-bold text-white transition-colors hover:bg-brand-600"
-                            >
-                              Ver oferta <ArrowUpRight className="size-3.5" aria-hidden />
-                            </a>
+                            <span className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-100 px-3.5 py-2 text-xs font-bold text-emerald-700">
+                              Ativa
+                            </span>
                           ) : (
                             <span className="inline-flex items-center gap-1.5 rounded-lg bg-ink-100 px-3.5 py-2 text-xs font-bold text-ink-400">
                               Encerrada
@@ -345,7 +319,7 @@ export default async function ProductPage({ params }: Props) {
               </table>
             </div>
             <p className="mt-2 text-[11px] text-ink-400">
-              Comprando pelos links acima, podemos receber comissão sem custo para você. Preços sujeitos a alteração.
+              Preços sujeitos a alteração.
               {prod.lastPriceCheck && <> · Última verificação de preço: <strong>{formatDate(prod.lastPriceCheck)}</strong></>}
               {prod.lastStockCheck && <> · Última verificação de estoque: <strong>{formatDate(prod.lastStockCheck)}</strong></>}
             </p>
@@ -544,15 +518,6 @@ export default async function ProductPage({ params }: Props) {
                 <div className="flex justify-between gap-3"><dt className="text-ink-400">Preço atual</dt><dd className="font-bold text-brand-400">{bestOffer ? formatBRL(bestOffer.price, 0) : "—"}</dd></div>
                 <div className="flex justify-between gap-3"><dt className="text-ink-400">Em relação à média</dt><dd className="font-bold">{bestOffer && average ? `${bestOffer.price <= average ? "▼" : "▲"} ${Math.abs(Math.round(((bestOffer.price - average) / average) * 100))}%` : "—"}</dd></div>
               </dl>
-              <a
-                href={buyUrl(bestOffer)}
-                target="_blank"
-                rel="noopener nofollow sponsored"
-                className="mt-4 flex items-center justify-center gap-2 rounded-xl bg-brand-500 px-4 py-2.5 text-sm font-bold text-white transition-colors hover:bg-brand-600"
-              >
-                <ShoppingBag className="size-4" aria-hidden />
-                Comprar
-              </a>
               {!bestOffer && (
                 <a
                   href={`/comparar/?add=${prod.slug}`}

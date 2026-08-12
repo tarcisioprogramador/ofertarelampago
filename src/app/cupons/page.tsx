@@ -1,10 +1,10 @@
 import Link from "next/link";
-import { BadgePercent, CalendarClock, ExternalLink } from "lucide-react";
+import { BadgePercent, CalendarClock } from "lucide-react";
 import { prisma } from "@/lib/db";
 import { buildMetadata } from "@/lib/seo";
 import { Breadcrumbs } from "@/components/breadcrumbs";
 import { CouponCopy } from "@/components/coupon-copy";
-import { formatDate, affiliateUrl } from "@/lib/utils";
+import { formatDate } from "@/lib/utils";
 
 export const metadata = buildMetadata({
   title: "Cupons de desconto ativos nas lojas parceiras",
@@ -56,9 +56,6 @@ export default async function CouponsPage() {
               )}
               <div className="mt-auto flex items-center justify-between gap-2 pt-4">
                 <CouponCopy code={c.code} />
-                <a href={affiliateUrl(c.url ?? c.store.url ?? "#")} target="_blank" rel="noopener nofollow sponsored" className="inline-flex items-center gap-1 text-xs font-bold text-brand-600 transition-colors hover:text-brand-700">
-                  Ir para a loja <ExternalLink className="size-3.5" aria-hidden />
-                </a>
               </div>
             </article>
           ))}

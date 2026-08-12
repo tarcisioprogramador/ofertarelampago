@@ -1,6 +1,6 @@
 import { prisma } from "@/lib/db";
-import { AdminPageHeader, AdminCard, Field, inputCls, SubmitButton } from "@/components/admin/ui";
-import { createAuthor } from "@/lib/admin-actions";
+import { AdminPageHeader, AdminCard, Field, inputCls, SubmitButton, DangerButton } from "@/components/admin/ui";
+import { createAuthor, deleteAuthor } from "@/lib/admin-actions";
 
 export const dynamic = "force-dynamic";
 
@@ -42,6 +42,11 @@ export default async function AdminAuthorsPage() {
                 <p className="font-bold text-ink-900">{a.name} <span className="text-xs font-normal text-ink-400">· {a._count.articles} artigos</span></p>
                 <p className="text-xs text-ink-500">{a.role ?? "Autor"} {a.specialty ? `· ${a.specialty}` : ""}</p>
               </div>
+              {a._count.articles === 0 && (
+                <form action={deleteAuthor.bind(null, a.id)} onSubmit={(e) => { if (!confirm("Excluir este autor?")) e.preventDefault(); }}>
+                  <DangerButton>Excluir</DangerButton>
+                </form>
+              )}
             </div>
           ))}
         </div>

@@ -14,7 +14,6 @@ export async function Footer() {
     { href: "/como-avaliamos/", label: "Como analisamos os produtos" },
     { href: "/como-funcionam-os-precos/", label: "Como funcionam os preços" },
     { href: "/contato", label: "Contato" },
-    { href: "/afiliados", label: "Afiliados e parceiros" },
     { href: "/politica-editorial/", label: "Política editorial" },
     { href: "/politica-de-privacidade/", label: "Política de privacidade" },
     { href: "/termos-de-uso/", label: "Termos de uso" },
@@ -37,14 +36,7 @@ export async function Footer() {
           <div className="space-y-4">
             <Logo />
             <p className="max-w-xs text-sm leading-relaxed text-ink-500">
-              Comparamos preços, fichas técnicas e avaliações para você tomar a melhor decisão de compra — sem pagar mais caro por isso.
-            </p>
-            <p className="text-xs text-ink-400">
-              Os links de ofertas podem gerar comissão para o site, sem custo para você.{" "}
-              <Link href="/afiliados/" className="underline underline-offset-2 hover:text-brand-600">
-                Saiba mais
-              </Link>
-              .
+              Comparamos preços, fichas técnicas e avaliações para você tomar a melhor decisão de compra.
             </p>
           </div>
 
