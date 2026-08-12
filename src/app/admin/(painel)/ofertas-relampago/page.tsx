@@ -7,7 +7,7 @@ export const dynamic = "force-dynamic";
 
 export default async function AdminDealsPage() {
   const [products, stores, deals] = await Promise.all([
-    prisma.product.findMany({ orderBy: { name: "asc" }, select: { id: true, name: true } }),
+    prisma.product.findMany({ orderBy: { name: "asc" }, select: { id: true, name: true, category: { select: { name: true } } } }),
     prisma.store.findMany({ orderBy: { name: "asc" }, select: { id: true, name: true } }),
     prisma.deal.findMany({
       include: { product: { select: { name: true } }, store: { select: { name: true } } },
@@ -31,9 +31,21 @@ export default async function AdminDealsPage() {
             <Field label="Produto *">
               <select required name="productId" className={inputCls}>
                 <option value="">Selecione...</option>
-                {products.map((p) => (
-                  <option key={p.id} value={p.id}>{p.name}</option>
-                ))}
+                {(() => {
+                  const grouped = new Map<string, typeof products>();
+                  for (const p of products) {
+                    const cat = p.category.name;
+                    if (!grouped.has(cat)) grouped.set(cat, []);
+                    grouped.get(cat)!.push(p);
+                  }
+                  return [...grouped.entries()].map(([cat, items]) => (
+                    <optgroup key={cat} label={cat}>
+                      {items.map((p) => (
+                        <option key={p.id} value={p.id}>{p.name}</option>
+                      ))}
+                    </optgroup>
+                  ));
+                })()}
               </select>
             </Field>
             <div className="grid grid-cols-2 gap-3">
