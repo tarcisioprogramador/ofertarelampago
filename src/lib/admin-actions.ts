@@ -5,7 +5,6 @@ import { redirect } from "next/navigation";
 import { prisma } from "./db";
 import { slugify, affiliateUrl, detectStore } from "./utils";
 import { fetchMeliProduct } from "./meli-importer";
-import { generateProductDraftWithAi, type AiProductDraft } from "./ai";
 import { isAdmin } from "./admin";
 
 async function guard() {
@@ -112,6 +111,28 @@ export async function createProduct(data: FormData) {
   });
   await saveProductExtras(product.id, categoryId, data);
 
+  // Oferta (quando vier do link do Mercado Livre no formulário)
+  const offerUrl = pick(data, "offerUrl");
+  const offerPrice = pickNum(data, "offerPrice");
+  const offerOldPrice = pickNum(data, "offerOldPrice");
+  const store = await prisma.store.findUnique({ where: { slug: "mercado-livre" } });
+  if (offerUrl && offerPrice && store) {
+    await prisma.offer.create({
+      data: {
+        productId: product.id,
+        storeId: store.id,
+        price: offerPrice,
+        oldPrice: offerOldPrice,
+        url: offerUrl,
+        shipping: "Frete grátis",
+        isBest: true,
+      },
+    });
+    await prisma.priceHistory.create({
+      data: { productId: product.id, storeId: store.id, price: offerPrice, recordedAt: new Date() },
+    });
+  }
+
   // REGRA OBRIGATÓRIA: todo produto cadastrado ganha artigo de blog SEO (linkado à página do produto)
   const [category, brand] = await Promise.all([
     prisma.category.findUnique({ where: { id: categoryId } }),
@@ -123,17 +144,21 @@ export async function createProduct(data: FormData) {
       brand: brand.name,
       categoryId,
       categoryName: category.name,
-      price: null,
-      oldPrice: null,
-      productUrl: null,
+      price: offerPrice,
+      oldPrice: offerOldPrice,
+      productUrl: offerUrl,
       categorySlug: category.slug,
       brandSlug: brand.slug,
       productSlug: slug,
     });
+    if (offerPrice) {
+      await ensureAutoComparison(product.id, { name, brand: brand.name, categoryId, categoryName: category.name, price: offerPrice });
+    }
   }
 
   revalidatePath("/admin/produtos/");
   revalidatePath("/blog");
+  revalidatePath("/comparar");
   revalidatePath("/");
   revalidatePath(`/${category?.slug}`);
   redirect("/admin/produtos/");
@@ -800,136 +825,35 @@ export async function generateAffiliateLink(data: FormData): Promise<AffiliateLi
   };
 }
 
-// ─── Assistente IA ──────────────────────────────────────────────────────────
+// ─── Busca automática de dados do Mercado Livre (para o formulário manual) ──
 
-export type AiDraftResult =
-  | { ok: true; draft: AiProductDraft; meli?: { price: number; oldPrice: number | null; productUrl: string } | null }
-  | { ok: false; error: string };
+export type MeliPreview = {
+  name: string;
+  price: number | null;
+  oldPrice: number | null;
+  imageUrl: string;
+  productUrl: string;
+};
 
-/**
- * Gera um rascunho completo de página de produto usando IA, a partir de um link
- * do Mercado Livre (ou descrição do produto) + fotos fornecidas pelo admin.
- */
-export async function generateProductDraft(data: FormData): Promise<AiDraftResult> {
+/** Puxa título e preço automaticamente de um link de afiliado do Mercado Livre. */
+export async function fetchMeliPreview(data: FormData): Promise<{ ok: true; data: MeliPreview } | { ok: false; error: string }> {
   await guard();
-  const link = pick(data, "link") ?? "";
-  const description = pick(data, "description") ?? "";
-  const photos = (pick(data, "photos") ?? "")
-    .split(/\r?\n/)
-    .map((s) => s.trim())
-    .filter((u) => u.startsWith("http"));
-  const categoryId = pick(data, "categoryId");
+  const link = pick(data, "link");
+  if (!link) return { ok: false, error: "Cole o link do produto." };
 
-  if (!categoryId) return { ok: false, error: "Selecione a categoria do produto." };
-  if (!link && !description && !photos.length) {
-    return { ok: false, error: "Cole o link do produto ou descreva o item (e, se quiser, as fotos)." };
-  }
+  const meli = await fetchMeliProduct(link);
+  if (!meli) return { ok: false, error: "Não foi possível extrair os dados deste link. Confira se é um link válido do Mercado Livre." };
 
-  const category = await prisma.category.findUnique({
-    where: { id: categoryId },
-    include: { attributeDefs: { orderBy: { order: "asc" } } },
-  });
-  if (!category) return { ok: false, error: "Categoria não encontrada." };
-
-  // Se for link do Mercado Livre, extrai dados reais (nome, preço, imagem)
-  let meli: { price: number; oldPrice: number | null; productUrl: string } | null = null;
-  let meliData = null;
-  if (link) {
-    meliData = await fetchMeliProduct(link);
-    if (meliData) meli = { price: meliData.price, oldPrice: meliData.oldPrice, productUrl: meliData.productUrl };
-  }
-
-  try {
-    const draft = await generateProductDraftWithAi({
-      link,
-      description,
-      photos,
-      category: { name: category.name, attributeDefs: category.attributeDefs.map((a) => ({ key: a.key, name: a.name })) },
-      meliData,
-    });
-    return { ok: true, draft, meli };
-  } catch (e) {
-    return { ok: false, error: e instanceof Error ? e.message : "Erro ao gerar com a IA. Tente novamente." };
-  }
-}
-
-/** Cria o produto a partir do rascunho gerado pela IA (com oferta do ML quando houver). */
-export async function createProductFromDraft(data: FormData) {
-  await guard();
-  const name = pick(data, "name");
-  const categoryId = pick(data, "categoryId");
-  const brandId = pick(data, "brandId");
-  if (!name || !categoryId || !brandId) throw new Error("Nome, categoria e marca são obrigatórios.");
-
-  const slug = pick(data, "slug") || slugify(name);
-  const product = await prisma.product.create({
+  return {
+    ok: true,
     data: {
-      name,
-      slug,
-      brandId,
-      categoryId,
-      summary: pick(data, "summary"),
-      description: pick(data, "description"),
-      imageUrl: pick(data, "imageUrl") ?? "/images/products/celulares.svg",
-      releaseDate: pick(data, "releaseDate") ? new Date(pick(data, "releaseDate")!) : null,
-      rating: pickNum(data, "rating") ?? 0,
-      reviewCount: pickNum(data, "reviewCount") ?? 0,
-      featured: pickBool(data, "featured"),
-      isNew: pickBool(data, "isNew"),
-      lastContentUpdate: new Date(),
+      name: meli.name,
+      price: meli.price,
+      oldPrice: meli.oldPrice,
+      imageUrl: meli.imageUrl ?? "",
+      productUrl: meli.productUrl,
     },
-  });
-  await saveProductExtras(product.id, categoryId, data);
-
-  // Oferta (quando vier do link do Mercado Livre)
-  const meliUrl = pick(data, "meliUrl");
-  const meliPrice = pickNum(data, "meliPrice");
-  const meliOldPrice = pickNum(data, "meliOldPrice");
-  const store = await prisma.store.findUnique({ where: { slug: "mercado-livre" } });
-  if (meliUrl && meliPrice && store) {
-    await prisma.offer.create({
-      data: {
-        productId: product.id,
-        storeId: store.id,
-        price: meliPrice,
-        oldPrice: meliOldPrice,
-        url: meliUrl,
-        shipping: "Frete grátis",
-        isBest: true,
-      },
-    });
-    await prisma.priceHistory.create({
-      data: { productId: product.id, storeId: store.id, price: meliPrice, recordedAt: new Date() },
-    });
-  }
-
-  // REGRA OBRIGATÓRIA: todo produto publicado ganha artigo de blog SEO + comparação com similares
-  const [category, brand] = await Promise.all([
-    prisma.category.findUnique({ where: { id: categoryId } }),
-    prisma.brand.findUnique({ where: { id: brandId } }),
-  ]);
-  if (category && brand) {
-    const blogData = {
-      name,
-      brand: brand.name,
-      categoryId,
-      categoryName: category.name,
-      price: meliPrice,
-      oldPrice: meliOldPrice,
-      productUrl: meliUrl,
-      categorySlug: category.slug,
-      brandSlug: brand.slug,
-      productSlug: slug,
-    };
-    await ensureProductArticle(product.id, blogData);
-    if (meliPrice) await ensureAutoComparison(product.id, { name, brand: brand.name, categoryId, categoryName: category.name, price: meliPrice });
-  }
-
-  revalidatePath("/admin/produtos/");
-  revalidatePath("/blog");
-  revalidatePath("/comparar");
-  revalidatePath("/");
-  redirect("/admin/produtos/");
+  };
 }
 
 // ─── Alertas ─────────────────────────────────────────────────────────────────

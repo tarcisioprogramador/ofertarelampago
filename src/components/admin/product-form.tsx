@@ -2,7 +2,9 @@
 
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
+import { Loader2, Link2, Sparkles } from "lucide-react";
 import { Field, inputCls, SubmitButton } from "./ui";
+import { fetchMeliPreview } from "@/lib/admin-actions";
 
 export type AttrDef = { id: string; key: string; name: string; type: string };
 export type CatOption = { id: string; name: string; attributeDefs: AttrDef[] };
@@ -42,6 +44,45 @@ export function ProductForm({ categories, brands, saveAction, initial }: Product
 
   const currentCat = useMemo(() => categories.find((c) => c.id === categoryId), [categoryId, categories]);
 
+  const [meliLink, setMeliLink] = useState("");
+  const [pulling, setPulling] = useState(false);
+  const [pullError, setPullError] = useState("");
+
+  async function pullFromLink() {
+    if (!meliLink.trim() || pulling) return;
+    setPulling(true);
+    setPullError("");
+    try {
+      const fd = new FormData();
+      fd.set("link", meliLink.trim());
+      const res = await fetchMeliPreview(fd);
+      if (!res.ok) {
+        setPullError(res.error);
+        return;
+      }
+      // Preenche automaticamente título, imagem, oferta (preço) e link de afiliado
+      if (res.data.name) setName(res.data.name);
+      const nameInput = document.querySelector<HTMLInputElement>('input[name="name"]');
+      if (nameInput && res.data.name) nameInput.value = res.data.name;
+      const slugInput = document.querySelector<HTMLInputElement>('input[name="slug"]');
+      if (slugInput && !slugInput.value) slugInput.value = res.data.name.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
+      const imgInput = document.querySelector<HTMLInputElement>('input[name="imageUrl"]');
+      if (imgInput && res.data.imageUrl) imgInput.value = res.data.imageUrl;
+      // Oferta automática
+      const priceInput = document.querySelector<HTMLInputElement>('input[name="offerPrice"]');
+      if (priceInput && res.data.price) priceInput.value = String(res.data.price);
+      const oldPriceInput = document.querySelector<HTMLInputElement>('input[name="offerOldPrice"]');
+      if (oldPriceInput && res.data.oldPrice) oldPriceInput.value = String(res.data.oldPrice);
+      const urlInput = document.querySelector<HTMLInputElement>('input[name="offerUrl"]');
+      if (urlInput && res.data.productUrl) urlInput.value = res.data.productUrl;
+      setMeliLink("");
+    } catch {
+      setPullError("Erro ao buscar os dados do link. Tente novamente.");
+    } finally {
+      setPulling(false);
+    }
+  }
+
   function submit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     const data = new FormData(e.currentTarget);
@@ -51,6 +92,36 @@ export function ProductForm({ categories, brands, saveAction, initial }: Product
 
   return (
     <form onSubmit={submit} className="space-y-6" noValidate>
+      {/* Busca automática pelo link de afiliado do Mercado Livre */}
+      <div className="rounded-2xl border border-brand-100 bg-brand-50/60 p-4">
+        <p className="mb-1.5 flex items-center gap-1.5 text-xs font-extrabold uppercase tracking-wider text-brand-700">
+          <Sparkles className="size-3.5" aria-hidden /> Importar dados do Mercado Livre
+        </p>
+        <p className="mb-3 text-xs text-ink-500">Cole seu link de afiliado e o site preenche título, preço e imagem automaticamente.</p>
+        <div className="flex flex-wrap gap-2">
+          <div className="relative min-w-0 flex-1">
+            <Link2 className="pointer-events-none absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-ink-400" aria-hidden />
+            <input
+              value={meliLink}
+              onChange={(e) => setMeliLink(e.target.value)}
+              className={`${inputCls} pl-10`}
+              placeholder="https://meli.la/2JrJehi"
+              aria-label="Link de afiliado do Mercado Livre"
+            />
+          </div>
+          <button
+            type="button"
+            onClick={pullFromLink}
+            disabled={pulling || !meliLink.trim()}
+            className="inline-flex items-center gap-2 rounded-xl bg-ink-950 px-5 py-2.5 text-sm font-bold text-white transition-colors hover:bg-brand-600 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            {pulling ? <Loader2 className="size-4 animate-spin" aria-hidden /> : <Sparkles className="size-4" aria-hidden />}
+            {pulling ? "Buscando..." : "Buscar dados"}
+          </button>
+        </div>
+        {pullError && <p className="mt-2 text-xs font-semibold text-flash-600">{pullError}</p>}
+      </div>
+
       <div className="grid gap-4 sm:grid-cols-2">
         <Field label="Nome do produto *">
           <input required name="name" value={name} onChange={(e) => setName(e.target.value)} className={inputCls} placeholder="Samsung Galaxy A17 5G" />
@@ -134,6 +205,21 @@ export function ProductForm({ categories, brands, saveAction, initial }: Product
           </div>
         </div>
       )}
+
+      <div className="rounded-2xl border border-ink-100 bg-ink-50/60 p-4">
+        <p className="mb-3 text-xs font-extrabold uppercase tracking-wider text-ink-500">Oferta do Mercado Livre (opcional)</p>
+        <div className="grid gap-4 sm:grid-cols-3">
+          <Field label="Preço (R$)" hint="Preenchido automaticamente pelo link">
+            <input type="number" step="0.01" name="offerPrice" className={inputCls} placeholder="758,70" />
+          </Field>
+          <Field label="Preço anterior (R$)">
+            <input type="number" step="0.01" name="offerOldPrice" className={inputCls} placeholder="1.049,00" />
+          </Field>
+          <Field label="Link da oferta (afiliado)">
+            <input name="offerUrl" className={inputCls} placeholder="https://meli.la/..." />
+          </Field>
+        </div>
+      </div>
 
       <Field label="Tags SEO" hint="Separadas por vírgula. Ex.: Galaxy A07, celular barato, Samsung, 128GB">
         <input name="tags" defaultValue={initial?.tags ?? ""} className={inputCls} placeholder="Galaxy A07, celular custo-benefício, Samsung barato" />
