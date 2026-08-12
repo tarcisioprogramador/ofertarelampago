@@ -91,9 +91,11 @@ export default async function ProductPage({ params }: Props) {
   const bestOffer = activeOffers[0] ?? null;
   const noActiveOffer = prod.offers.length > 0 && activeOffers.length === 0;
 
-  // Link do botão "Comprar": usa a URL de afiliado configurada na loja (ex: perfil do ML) ou a da oferta
+  // Link do botão "Comprar": prioriza a URL da oferta do PRODUTO com tracking de afiliado
+  // (ex.: mercadolivre.com.br/.../p/MLB...?matt_tool=...). O link do perfil da loja só é
+  // usado como último recurso quando a oferta não tem URL própria.
   const buyUrl = (offer: (typeof prod.offers)[number] | null | undefined) =>
-    offer?.store.affiliateUrl || affiliateUrl(offer?.url);
+    (offer?.url ? affiliateUrl(offer.url) : "") || offer?.store.affiliateUrl || "#";
   const productPath = `/${category}/${brand}/${prod.slug}/`;
   const discounts = prod.offers.map((o) => percentOff(o.oldPrice, o.price)).filter((d): d is number => d !== null);
   const maxDiscount = discounts.length ? Math.max(...discounts) : 0;
