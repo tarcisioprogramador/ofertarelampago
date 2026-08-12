@@ -270,7 +270,7 @@ export async function createDeal(data: FormData) {
       storeId,
       price,
       oldPrice,
-      url: pick(data, "url") ?? "https://www.amazon.com.br/oferta-relampago",
+      url: pick(data, "url") ?? "",
       couponCode: pick(data, "couponCode"),
       imageUrl: pick(data, "imageUrl"),
       startAt: new Date(startAt),

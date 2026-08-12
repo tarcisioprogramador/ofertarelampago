@@ -68,6 +68,9 @@ export default async function AdminDealsPage() {
                 <input required type="datetime-local" name="endAt" className={inputCls} />
               </Field>
             </div>
+            <Field label="URL do botão de compra *">
+              <input required name="url" className={inputCls} placeholder="https://www.mercadolivre.com.br/..." />
+            </Field>
             <Field label="Descrição">
               <textarea name="description" rows={3} className={inputCls} placeholder="Descreva a oferta em detalhes..." />
             </Field>
