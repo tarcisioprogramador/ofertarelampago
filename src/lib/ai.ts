@@ -20,16 +20,28 @@ export function aiConfigured(): boolean {
   return Boolean(process.env.AI_API_KEY);
 }
 
-/** Extrai o primeiro objeto JSON válido de uma resposta do modelo (tolera code fences). */
+/** Extrai o primeiro objeto JSON válido de uma resposta do modelo (tolera code fences e texto ao redor). */
 function parseJson(text: string): Record<string, unknown> | null {
-  const clean = text.replace(/```(?:json)?/g, "").trim();
+  const clean = text
+    .replace(/```(?:json)?/gi, "")
+    .replace(/`/g, "")
+    .trim();
   const start = clean.indexOf("{");
   const end = clean.lastIndexOf("}");
   if (start === -1 || end === -1 || end <= start) return null;
+  const candidate = clean.slice(start, end + 1);
   try {
-    return JSON.parse(clean.slice(start, end + 1));
+    return JSON.parse(candidate) as Record<string, unknown>;
   } catch {
-    return null;
+    // tenta reparar vírgula/aspas duplicadas antes de desistir
+    const repaired = candidate
+      .replace(/,(\s*[}\]])/g, "$1") // vírgulas antes de } ]
+      .replace(/"([^"]{2,})"\s*"/g, '"$1\\"'); // aspas duplicadas simples
+    try {
+      return JSON.parse(repaired) as Record<string, unknown>;
+    } catch {
+      return null;
+    }
   }
 }
 
@@ -59,18 +71,7 @@ export type AiGenerateInput = {
   meliData?: Awaited<ReturnType<typeof fetchMeliProduct>> | null;
 };
 
-/**
- * Chama a API de IA (formato OpenAI, configurável) para gerar a página completa
- * de um produto a partir de um link, descrição e/ou fotos. NUNCA inventa dados
- * que não foram informados — dados não confirmados viram campos vazios.
- */
-export async function generateProductDraftWithAi(input: AiGenerateInput): Promise<AiProductDraft> {
-  const apiKey = process.env.AI_API_KEY;
-  if (!apiKey) throw new Error("Chave de IA não configurada. Defina AI_API_KEY no .env (e na Vercel).");
-
-  const baseUrl = (process.env.AI_BASE_URL ?? "https://api.openai.com/v1").replace(/\/+$/, "");
-  const model = process.env.AI_MODEL ?? "gpt-4o-mini";
-
+function buildPrompt(input: AiGenerateInput): { system: string; user: string } {
   const attrsPrompt =
     input.category.attributeDefs.map((d) => `- ${d.name} (chave: ${d.key})`).join("\n") || "(nenhum campo específico desta categoria)";
 
@@ -126,7 +127,92 @@ Formato EXATO de resposta (JSON apenas):
   "reviewCount": 0
 }`;
 
-  const res = await fetch(`${baseUrl}/chat/completions`, {
+  return { system, user };
+}
+
+/** Monta o rascunho final a partir do JSON da IA. */
+function buildDraft(json: Record<string, unknown>, input: AiGenerateInput): AiProductDraft {
+  const gallery = asStringList(json.galleryImages);
+  const userPhotos = input.photos.filter((u) => !gallery.includes(u));
+  const allImages = [...gallery, ...userPhotos].slice(0, 10);
+
+  const name = asString(json.name, input.meliData?.name ?? input.link);
+  if (!name) throw new Error("A IA não identificou o nome do produto.");
+
+  return {
+    name,
+    slug: asString(json.slug, name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "")),
+    summary: asString(json.summary),
+    description: asString(json.description),
+    imageUrl: asString(json.imageUrl, input.meliData?.imageUrl ?? ""),
+    galleryImages: allImages,
+    attributes: Object.fromEntries(
+      input.category.attributeDefs.map((d) => [d.key, asString((json.attributes as Record<string, unknown> | undefined)?.[d.key])])
+    ),
+    pros: asStringList(json.pros),
+    cons: asStringList(json.cons),
+    tags: asStringList(json.tags),
+    rating: asNumber(json.rating, 0, 5, 0),
+    reviewCount: Math.round(asNumber(json.reviewCount, 0, 1000000, 0)),
+  };
+}
+
+/**
+ * Chama a IA para gerar a página completa do produto.
+ *
+ * - Google Gemini: usa a API nativa com responseMimeType "application/json",
+ *   que GARANTE que a resposta será JSON válido (elimina o erro de parsing).
+ * - OpenAI/OpenRouter: usa /chat/completions (JSON parseado com tolerância).
+ *
+ * NUNCA inventa dados que não foram informados.
+ */
+export async function generateProductDraftWithAi(input: AiGenerateInput): Promise<AiProductDraft> {
+  const apiKey = process.env.AI_API_KEY;
+  if (!apiKey) throw new Error("Chave de IA não configurada. Defina AI_API_KEY no .env (e na Vercel).");
+
+  const baseUrl = (process.env.AI_BASE_URL ?? "https://generativelanguage.googleapis.com/v1beta").replace(/\/+$/, "");
+  const model = process.env.AI_MODEL ?? "gemini-flash-latest";
+  const { system, user } = buildPrompt(input);
+  const isGemini = /generativelanguage\.googleapis\.com/i.test(baseUrl);
+
+  if (isGemini) {
+    // ─── API nativa do Gemini (JSON garantido) ───────────────────────────
+    const res = await fetch(`${baseUrl}/models/${model}:generateContent`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-goog-api-key": apiKey,
+      },
+      body: JSON.stringify({
+        contents: [
+          { role: "user", parts: [{ text: `${system}\n\n${user}` }] },
+        ],
+        generationConfig: {
+          responseMimeType: "application/json",
+          temperature: 0.7,
+          maxOutputTokens: 4000,
+        },
+      }),
+      cache: "no-store",
+    });
+
+    if (!res.ok) {
+      const detail = await res.text().catch(() => "");
+      throw new Error(`Erro na API do Gemini (HTTP ${res.status})${detail ? `: ${detail.slice(0, 200)}` : ""}`);
+    }
+
+    const body = (await res.json()) as {
+      candidates?: { content?: { parts?: { text?: string }[] } }[];
+    };
+    const content = body.candidates?.[0]?.content?.parts?.map((p) => p.text ?? "").join("") ?? "";
+    const json = parseJson(content);
+    if (!json) throw new Error("A IA não retornou um JSON válido. Tente novamente.");
+    return buildDraft(json, input);
+  }
+
+  // ─── OpenAI / OpenRouter / outros (compatível) ─────────────────────────
+  const chatUrl = `${baseUrl}/chat/completions`;
+  const res = await fetch(chatUrl, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -153,28 +239,5 @@ Formato EXATO de resposta (JSON apenas):
   const content = body.choices?.[0]?.message?.content ?? "";
   const json = parseJson(content);
   if (!json) throw new Error("A IA não retornou um JSON válido. Tente novamente.");
-
-  const gallery = asStringList(json.galleryImages);
-  const userPhotos = input.photos.filter((u) => !gallery.includes(u));
-  const allImages = [...gallery, ...userPhotos].slice(0, 10);
-
-  const name = asString(json.name, input.meliData?.name ?? input.link);
-  if (!name) throw new Error("A IA não identificou o nome do produto.");
-
-  return {
-    name,
-    slug: asString(json.slug, name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "")),
-    summary: asString(json.summary),
-    description: asString(json.description),
-    imageUrl: asString(json.imageUrl, input.meliData?.imageUrl ?? ""),
-    galleryImages: allImages,
-    attributes: Object.fromEntries(
-      input.category.attributeDefs.map((d) => [d.key, asString((json.attributes as Record<string, unknown> | undefined)?.[d.key])])
-    ),
-    pros: asStringList(json.pros),
-    cons: asStringList(json.cons),
-    tags: asStringList(json.tags),
-    rating: asNumber(json.rating, 0, 5, 0),
-    reviewCount: Math.round(asNumber(json.reviewCount, 0, 1000000, 0)),
-  };
+  return buildDraft(json, input);
 }
