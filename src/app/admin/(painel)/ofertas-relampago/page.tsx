@@ -68,6 +68,15 @@ export default async function AdminDealsPage() {
                 <input required type="datetime-local" name="endAt" className={inputCls} />
               </Field>
             </div>
+            <Field label="Descrição">
+              <textarea name="description" rows={3} className={inputCls} placeholder="Descreva a oferta em detalhes..." />
+            </Field>
+            <Field label="Tags (separadas por vírgula)">
+              <input name="tags" className={inputCls} placeholder="celular, samsung, 5g, barato" />
+            </Field>
+            <Field label="URL da imagem">
+              <input name="imageUrl" className={inputCls} placeholder="https://exemplo.com/foto.jpg ou /images/produto.svg" />
+            </Field>
             <Field label="Cupom">
               <input name="couponCode" className={inputCls} placeholder="OFERTA10" />
             </Field>

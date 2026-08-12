@@ -251,12 +251,15 @@ export async function createDeal(data: FormData) {
   await prisma.deal.create({
     data: {
       title: pick(data, "title") ?? "Oferta relâmpago",
+      description: pick(data, "description"),
+      tags: pick(data, "tags"),
       productId,
       storeId,
       price,
       oldPrice,
       url: pick(data, "url") ?? "https://www.amazon.com.br/oferta-relampago",
       couponCode: pick(data, "couponCode"),
+      imageUrl: pick(data, "imageUrl"),
       startAt: new Date(startAt),
       endAt: new Date(endAt),
       status: pick(data, "status") ?? "ACTIVE",

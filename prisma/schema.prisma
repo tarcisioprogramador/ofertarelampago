@@ -187,21 +187,23 @@ model Offer {
 
 // Campanha de oferta relâmpago (com data de início/fim e status)
 model Deal {
-  id        String   @id @default(cuid())
-  title     String
-  productId String
-  product   Product  @relation(fields: [productId], references: [id])
-  storeId   String
-  store     Store    @relation(fields: [storeId], references: [id])
-  oldPrice  Float
-  price     Float
-  url       String
-  couponCode String?
-  imageUrl  String?
-  startAt   DateTime
-  endAt     DateTime
-  status    String   @default("SCHEDULED") // SCHEDULED | ACTIVE | EXPIRED
-  createdAt DateTime @default(now())
+  id          String   @id @default(cuid())
+  title       String
+  description String?
+  tags        String?
+  productId   String
+  product     Product  @relation(fields: [productId], references: [id])
+  storeId     String
+  store       Store    @relation(fields: [storeId], references: [id])
+  oldPrice    Float
+  price       Float
+  url         String
+  couponCode  String?
+  imageUrl    String?
+  startAt     DateTime
+  endAt       DateTime
+  status      String   @default("SCHEDULED") // SCHEDULED | ACTIVE | EXPIRED
+  createdAt   DateTime @default(now())
 
   @@index([status])
 }
