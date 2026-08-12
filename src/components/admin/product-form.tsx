@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Loader2, Link2, Sparkles } from "lucide-react";
 import { Field, inputCls, SubmitButton } from "./ui";
+import { slugify } from "@/lib/utils";
 import { fetchMeliPreview } from "@/lib/admin-actions";
 
 export type AttrDef = { id: string; key: string; name: string; type: string };
@@ -65,7 +66,7 @@ export function ProductForm({ categories, brands, saveAction, initial }: Product
       const nameInput = document.querySelector<HTMLInputElement>('input[name="name"]');
       if (nameInput && res.data.name) nameInput.value = res.data.name;
       const slugInput = document.querySelector<HTMLInputElement>('input[name="slug"]');
-      if (slugInput && !slugInput.value) slugInput.value = res.data.name.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
+      if (slugInput && !slugInput.value) slugInput.value = slugify(res.data.name);
       const imgInput = document.querySelector<HTMLInputElement>('input[name="imageUrl"]');
       if (imgInput && res.data.imageUrl) imgInput.value = res.data.imageUrl;
       // Oferta automática
@@ -210,10 +211,10 @@ export function ProductForm({ categories, brands, saveAction, initial }: Product
         <p className="mb-3 text-xs font-extrabold uppercase tracking-wider text-ink-500">Oferta do Mercado Livre (opcional)</p>
         <div className="grid gap-4 sm:grid-cols-3">
           <Field label="Preço (R$)" hint="Preenchido automaticamente pelo link">
-            <input type="number" step="0.01" name="offerPrice" className={inputCls} placeholder="758,70" />
+            <input type="number" step="0.01" min="0" name="offerPrice" className={inputCls} placeholder="758.70" />
           </Field>
           <Field label="Preço anterior (R$)">
-            <input type="number" step="0.01" name="offerOldPrice" className={inputCls} placeholder="1.049,00" />
+            <input type="number" step="0.01" min="0" name="offerOldPrice" className={inputCls} placeholder="1049.00" />
           </Field>
           <Field label="Link da oferta (afiliado)">
             <input name="offerUrl" className={inputCls} placeholder="https://meli.la/..." />
