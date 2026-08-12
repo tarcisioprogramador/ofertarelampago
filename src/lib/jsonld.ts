@@ -78,9 +78,13 @@ export function productJsonLd(opts: {
     url: o.url,
     availability: o.availability === false ? "https://schema.org/OutOfStock" : "https://schema.org/InStock",
     seller: { "@type": "Organization", name: o.storeName },
+    itemCondition: "https://schema.org/NewCondition",
     ...(o.oldPrice ? { priceValidUntil: new Date(Date.now() + 7 * 86400000).toISOString().slice(0, 10) } : {}),
     ...(o.couponCode ? { description: `Use o cupom ${o.couponCode} no checkout` } : {}),
   }));
+
+  const prices = opts.offers.map((o) => o.price);
+  const hasOffers = prices.length > 0;
 
   const graph: Record<string, unknown>[] = [
     {
@@ -92,14 +96,18 @@ export function productJsonLd(opts: {
       brand: { "@type": "Brand", name: opts.brand },
       category: opts.category,
       url: siteUrl(opts.url),
-      offers: {
-        "@type": "AggregateOffer",
-        priceCurrency: "BRL",
-        lowPrice: Math.min(...opts.offers.map((o) => o.price)).toFixed(2),
-        highPrice: Math.max(...opts.offers.map((o) => o.price)).toFixed(2),
-        offerCount: opts.offers.length,
-        offers,
-      },
+      ...(hasOffers
+        ? {
+            offers: {
+              "@type": "AggregateOffer",
+              priceCurrency: "BRL",
+              lowPrice: Math.min(...prices).toFixed(2),
+              highPrice: Math.max(...prices).toFixed(2),
+              offerCount: prices.length,
+              offers,
+            },
+          }
+        : {}),
       ...(opts.rating && opts.rating > 0
         ? {
             aggregateRating: {

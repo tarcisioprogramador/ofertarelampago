@@ -3,7 +3,11 @@ import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 
 const COOKIE = "or_admin";
-const secret = () => process.env.SESSION_SECRET ?? "dev-secret";
+const secret = () => {
+  const s = process.env.SESSION_SECRET;
+  if (!s) throw new Error("SESSION_SECRET não configurado. Adicione a variável de ambiente.");
+  return s;
+};
 
 export function signToken(payload: string): string {
   const sig = createHmac("sha256", secret()).update(payload).digest("hex");

@@ -10,7 +10,6 @@ import { DealCard, type DealCardData } from "@/components/deal-card";
 import { ProductCard, type ProductCardData } from "@/components/product-card";
 import { ArticleCard, type ArticleCardData } from "@/components/article-card";
 import { FaqAccordion } from "@/components/faq-accordion";
-import { formatBRL } from "@/lib/utils";
 
 export const metadata = buildMetadata({
   title: "Ofertas, preços e informações para você comprar melhor",
@@ -27,41 +26,35 @@ export default async function HomePage() {
       where: { status: "ACTIVE", endAt: { gt: new Date() } },
       orderBy: { endAt: "asc" },
       include: { product: { include: { brand: true, category: true } }, store: true },
-    }),
+    }).catch(() => []),
     prisma.category.findMany({
       where: { products: { some: {} } },
       orderBy: { order: "asc" },
       include: { _count: { select: { products: true } } },
-    }),
+    }).catch(() => []),
     prisma.product.findMany({
       where: { featured: true },
       include: { brand: true, category: true, offers: { include: { store: true }, orderBy: { price: "asc" } } },
-    }),
+    }).catch(() => []),
     prisma.product.findMany({
       where: { offers: { some: { active: true } } },
       orderBy: { createdAt: "desc" },
       take: 8,
       include: { brand: true, category: true, offers: { where: { active: true }, include: { store: true }, orderBy: { price: "asc" } } },
-    }),
+    }).catch(() => []),
     prisma.comparison.findMany({
       orderBy: { createdAt: "desc" },
       take: 3,
       include: { items: { include: { product: { include: { brand: true } } }, orderBy: { order: "asc" } } },
-    }),
+    }).catch(() => []),
     prisma.article.findMany({
       where: { published: true },
       orderBy: { publishedAt: "desc" },
       take: 6,
       include: { author: true, category: true },
-    }),
-    prisma.coupon.findMany({ where: { active: true }, include: { store: true }, take: 6, orderBy: { createdAt: "desc" } }),
+    }).catch(() => []),
+    prisma.coupon.findMany({ where: { active: true }, include: { store: true }, take: 6, orderBy: { createdAt: "desc" } }).catch(() => []),
   ]);
-
-  const a17History = await prisma.priceHistory.findMany({
-    where: { product: { slug: "galaxy-a17-5g" }, recordedAt: { gte: new Date(Date.now() - 90 * 86400000) } },
-    select: { price: true },
-  });
-  const a17Avg = a17History.length ? a17History.reduce((s, h) => s + h.price, 0) / a17History.length : 0;
 
   const dealCards: DealCardData[] = deals.map((d) => ({
     id: d.id,
@@ -347,7 +340,7 @@ export default async function HomePage() {
           </div>
         </div>
         <p className="mt-4 text-center text-xs text-ink-400">
-          Preço médio de referência do Galaxy A17 5G nos últimos 90 dias: <strong className="text-ink-600">{formatBRL(a17Avg, 0)}</strong> — compare antes de comprar.
+          Compare preços, fichas técnicas e históricos antes de comprar. Dados atualizados diariamente.
         </p>
       </section>
     </>

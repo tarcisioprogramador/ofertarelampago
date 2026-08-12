@@ -198,6 +198,19 @@ export async function updateProduct(id: string, data: FormData) {
 
 export async function deleteProduct(id: string) {
   await guard();
+  // Deleta registros relacionados primeiro (FK constraints)
+  await prisma.priceHistory.deleteMany({ where: { productId: id } });
+  await prisma.offer.deleteMany({ where: { productId: id } });
+  await prisma.deal.deleteMany({ where: { productId: id } });
+  await prisma.review.deleteMany({ where: { productId: id } });
+  await prisma.productFAQ.deleteMany({ where: { productId: id } });
+  await prisma.productTag.deleteMany({ where: { productId: id } });
+  await prisma.productAttributeValue.deleteMany({ where: { productId: id } });
+  await prisma.prosCons.deleteMany({ where: { productId: id } });
+  await prisma.articleProduct.deleteMany({ where: { productId: id } });
+  await prisma.comparisonItem.deleteMany({ where: { productId: id } });
+  await prisma.productImage.deleteMany({ where: { productId: id } });
+  await prisma.priceAlert.deleteMany({ where: { productId: id } });
   await prisma.product.delete({ where: { id } });
   revalidatePath("/admin/produtos/");
   revalidatePath("/");

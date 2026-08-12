@@ -58,31 +58,31 @@ export default async function ProductPage({ params }: Props) {
       where: { product: { slug: product } },
       orderBy: { recordedAt: "asc" },
       select: { price: true, recordedAt: true },
-    }),
+    }).catch(() => []),
     prisma.comparison.findMany({
       where: { items: { some: { product: { slug: product } } } },
       include: { items: { include: { product: { include: { brand: true } } }, orderBy: { order: "asc" } } },
-    }),
+    }).catch(() => []),
     prisma.product.findMany({
       where: { category: { slug: category }, NOT: { slug: product } },
       include: { brand: true, category: true, offers: { include: { store: true }, orderBy: { price: "asc" } } },
       take: 4,
       orderBy: { rating: "desc" },
-    }),
+    }).catch(() => []),
     prisma.article.findMany({
       where: { published: true, products: { some: { product: { slug: product } } } },
       include: { author: true, category: true },
       take: 3,
       orderBy: { publishedAt: "desc" },
-    }),
+    }).catch(() => []),
     prisma.deal.findMany({
       where: { status: "ACTIVE", endAt: { gt: new Date() }, product: { slug: product } },
       include: { store: true, product: true },
-    }),
+    }).catch(() => []),
     prisma.product.findUnique({
       where: { slug: product },
       select: { tags: { include: { tag: true } } },
-    }),
+    }).catch(() => null),
   ]);
 
   if (!prod) notFound();

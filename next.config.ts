@@ -19,10 +19,6 @@ const nextConfig: NextConfig = {
         hostname: "a-static.mlcdn.com.br",
       }
     ],
-    // SVGs locais próprios (placeholders) — sem risco de XSS
-    dangerouslyAllowSVG: true,
-    contentDispositionType: "inline",
-    contentSecurityPolicy: "default-src 'self'; script-src 'none'; sandbox;",
   },
   poweredByHeader: false,
   compress: true,
