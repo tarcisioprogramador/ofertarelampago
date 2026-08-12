@@ -128,6 +128,7 @@ export async function createProduct(data: FormData) {
       productUrl: null,
       categorySlug: category.slug,
       brandSlug: brand.slug,
+      productSlug: slug,
     });
   }
 
@@ -497,12 +498,12 @@ function blogCoverFor(categorySlug: string | null): string {
   return `/images/blog/${mapped[categorySlug] ?? "produtos"}.svg`;
 }
 
-async function ensureProductArticle(productId: string, data: { name: string; brand: string; categoryId: string | null; categoryName: string; price: number | null; oldPrice: number | null; productUrl: string | null; categorySlug: string; brandSlug: string }): Promise<string | null> {
+async function ensureProductArticle(productId: string, data: { name: string; brand: string; categoryId: string | null; categoryName: string; price: number | null; oldPrice: number | null; productUrl: string | null; categorySlug: string; brandSlug: string; productSlug: string }): Promise<string | null> {
   const slug = `${slugify(data.name)}-e-bom`;
   const existing = await prisma.article.findUnique({ where: { slug } });
   if (existing) return null;
 
-  const productPath = `/${data.categorySlug}/${data.brandSlug}/${slugify(data.name)}/`;
+  const productPath = `/${data.categorySlug}/${data.brandSlug}/${data.productSlug}/`;
   const priceTxt = data.price ? `R$ ${data.price.toFixed(2).replace(".", ",")}` : null;
   const discountTxt = data.price && data.oldPrice && data.oldPrice > data.price
     ? ` O preço atual de **${priceTxt}** representa **${Math.round(((data.oldPrice - data.price) / data.oldPrice) * 100)}% de desconto** em relação ao preço anterior de R$ ${data.oldPrice.toFixed(2).replace(".", ",")}.`
@@ -739,6 +740,7 @@ export async function importMeliProducts(data: FormData): Promise<ImportResult> 
       productUrl: data.productUrl,
       categorySlug: category?.slug ?? "",
       brandSlug: brand.slug,
+      productSlug: slug,
     });
     await ensureAutoComparison(product.id, {
       name: data.name,
@@ -917,6 +919,7 @@ export async function createProductFromDraft(data: FormData) {
       productUrl: meliUrl,
       categorySlug: category.slug,
       brandSlug: brand.slug,
+      productSlug: slug,
     };
     await ensureProductArticle(product.id, blogData);
     if (meliPrice) await ensureAutoComparison(product.id, { name, brand: brand.name, categoryId, categoryName: category.name, price: meliPrice });
