@@ -91,7 +91,7 @@ export async function generateProductDraftWithAi(input: AiGenerateInput): Promis
 Sua missão: criar a página completa de UM produto, com qualidade editorial alta, texto original (nunca copie a descrição da loja) e dados reais.
 REGRAS OBRIGATÓRIAS:
 1. NUNCA invente preço, desconto, avaliação, especificação, estoque ou disponibilidade. Se um dado não foi informado, deixe o campo vazio (string vazia) — nunca fabrique.
-2. Descrição com 3 a 4 parágrafos (250 a 400 palavras), respondendo: o que é, para quem é, principais recursos e custo-benefício.
+2. Descrição com 3 a 4 parágrafos (250 a 400 palavras) em COPY DE ALTA CONVERSÃO, respondendo: o que é, para quem é, principais recursos E SEUS BENEFÍCIOS (o que o usuário ganha no dia a dia), além do custo-benefício. Destaque os pontos fortes do produto de forma persuasiva, mas sempre honesta.
 3. Ficha técnica (attributes): preencha SOMENTE os valores que dá para deduzir com segurança das informações reais fornecidas. Campos desconhecidos ficam com string vazia.
 4. Tags SEO: 6 a 14 tags relevantes (produto, modelo, capacidade, categoria, "vale a pena", "preço", "promoção", marca + categoria).
 5. Pros/contras: 3 a 5 pontos cada, objetivos e sem exagero.

@@ -112,9 +112,29 @@ export async function createProduct(data: FormData) {
   });
   await saveProductExtras(product.id, categoryId, data);
 
+  // REGRA OBRIGATÓRIA: todo produto cadastrado ganha artigo de blog SEO (linkado à página do produto)
+  const [category, brand] = await Promise.all([
+    prisma.category.findUnique({ where: { id: categoryId } }),
+    prisma.brand.findUnique({ where: { id: brandId } }),
+  ]);
+  if (category && brand) {
+    await ensureProductArticle(product.id, {
+      name,
+      brand: brand.name,
+      categoryId,
+      categoryName: category.name,
+      price: null,
+      oldPrice: null,
+      productUrl: null,
+      categorySlug: category.slug,
+      brandSlug: brand.slug,
+    });
+  }
+
   revalidatePath("/admin/produtos/");
+  revalidatePath("/blog");
   revalidatePath("/");
-  revalidatePath(`/${(await prisma.category.findUnique({ where: { id: categoryId } }))?.slug}`);
+  revalidatePath(`/${category?.slug}`);
   redirect("/admin/produtos/");
 }
 
@@ -477,15 +497,22 @@ function blogCoverFor(categorySlug: string | null): string {
   return `/images/blog/${mapped[categorySlug] ?? "produtos"}.svg`;
 }
 
-async function ensureProductArticle(productId: string, data: { name: string; brand: string; categoryId: string | null; categoryName: string; price: number; oldPrice: number | null; productUrl: string; categorySlug: string; brandSlug: string }): Promise<string | null> {
+async function ensureProductArticle(productId: string, data: { name: string; brand: string; categoryId: string | null; categoryName: string; price: number | null; oldPrice: number | null; productUrl: string | null; categorySlug: string; brandSlug: string }): Promise<string | null> {
   const slug = `${slugify(data.name)}-e-bom`;
   const existing = await prisma.article.findUnique({ where: { slug } });
   if (existing) return null;
 
-  const priceTxt = `R$ ${data.price.toFixed(2).replace(".", ",")}`;
-  const discountTxt = data.oldPrice && data.oldPrice > data.price
+  const productPath = `/${data.categorySlug}/${data.brandSlug}/${slugify(data.name)}/`;
+  const priceTxt = data.price ? `R$ ${data.price.toFixed(2).replace(".", ",")}` : null;
+  const discountTxt = data.price && data.oldPrice && data.oldPrice > data.price
     ? ` O preço atual de **${priceTxt}** representa **${Math.round(((data.oldPrice - data.price) / data.oldPrice) * 100)}% de desconto** em relação ao preço anterior de R$ ${data.oldPrice.toFixed(2).replace(".", ",")}.`
-    : ` O preço atual encontrado é de **${priceTxt}**.`;
+    : data.price
+      ? ` O preço atual encontrado é de **${priceTxt}**.`
+      : " Os preços variam conforme a loja e o momento — consulte as ofertas atuais na página do produto.";
+  const cta = data.productUrl ? `[Confira a oferta atual do ${data.name}](${data.productUrl})` : `[Veja as ofertas do ${data.name}](${productPath})`;
+  const priceFaq = data.price
+    ? `O preço atual encontrado é de **${priceTxt}**. Os preços mudam com frequência — confira sempre a oferta mais recente.`
+    : `O preço varia conforme a loja, a promoção e o momento da compra. Veja as [ofertas atuais do ${data.name}](${productPath}) para conferir o valor mais recente.`;
 
   const content = `# ${data.name} é bom? Veja preço, ficha técnica e se vale a pena
 
@@ -499,7 +526,7 @@ ${discountTxt}
 
 Para quem busca economia, vale acompanhar o histórico de preços antes de comprar: o momento ideal é quando o valor está no menor patamar do período.
 
-[Confira a oferta atual do ${data.name}](${data.productUrl})
+${cta}
 
 ## Principais características
 
@@ -515,17 +542,17 @@ Este produto atende quem busca uma opção da categoria **${data.categoryName}**
 
 ## Alternativas e comparações
 
-Na página do produto você encontra [produtos similares](${data.categorySlug}/${data.brandSlug}/${slugify(data.name)}/) na mesma categoria, além de comparações lado a lado de preço e especificações.
+Na página do produto você encontra [produtos similares](${productPath}) na mesma categoria, além de comparações lado a lado de preço e especificações.
 
 ## Perguntas frequentes
 
 ### Quanto custa o ${data.name}?
 
-O preço atual encontrado é de **${priceTxt}**. Os preços mudam com frequência — confira sempre a oferta mais recente.
+${priceFaq}
 
 ### Onde comprar o ${data.name}?
 
-O produto está disponível em lojas parceiras. Veja as [ofertas atuais](${data.categorySlug}/${data.brandSlug}/${slugify(data.name)}/) e escolha a melhor opção.
+O produto está disponível em lojas parceiras. Veja as [ofertas atuais](${productPath}) e escolha a melhor opção.
 
 ### O ${data.name} vale a pena?
 
@@ -540,7 +567,9 @@ O **${data.name}** é uma opção real da categoria **${data.categoryName}**. Co
       data: {
         title: `${data.name} é bom? Veja preço, ficha técnica e se vale a pena`,
         slug,
-        excerpt: `Análise do ${data.name} da ${data.brand}: preço atual (${priceTxt}), principais características, alternativas e se vale a pena comprar.`,
+        excerpt: data.price
+          ? `Análise do ${data.name} da ${data.brand}: preço atual (R$ ${data.price.toFixed(2).replace(".", ",")}), principais características, alternativas e se vale a pena comprar.`
+          : `Análise do ${data.name} da ${data.brand}: principais características, benefícios, alternativas e se vale a pena comprar.`,
         content,
         type: "BLOG",
         categoryId: data.categoryId,
@@ -548,7 +577,7 @@ O **${data.name}** é uma opção real da categoria **${data.categoryName}**. Co
         published: true,
         publishedAt: new Date(),
         seoTitle: `${data.name}: vale a pena? Preço, ficha técnica e ofertas`,
-        seoDescription: `O ${data.name} é bom? Veja preço atual (${priceTxt}), características, alternativas e se vale a pena comprar em ${new Date().getFullYear()}.`,
+        seoDescription: `O ${data.name} é bom? Veja preço${data.price ? ` atual (R$ ${data.price.toFixed(2).replace(".", ",")})` : ""}, características, alternativas e se vale a pena comprar.`,
         products: { create: { productId } },
       },
     })
@@ -872,7 +901,30 @@ export async function createProductFromDraft(data: FormData) {
     });
   }
 
+  // REGRA OBRIGATÓRIA: todo produto publicado ganha artigo de blog SEO + comparação com similares
+  const [category, brand] = await Promise.all([
+    prisma.category.findUnique({ where: { id: categoryId } }),
+    prisma.brand.findUnique({ where: { id: brandId } }),
+  ]);
+  if (category && brand) {
+    const blogData = {
+      name,
+      brand: brand.name,
+      categoryId,
+      categoryName: category.name,
+      price: meliPrice,
+      oldPrice: meliOldPrice,
+      productUrl: meliUrl,
+      categorySlug: category.slug,
+      brandSlug: brand.slug,
+    };
+    await ensureProductArticle(product.id, blogData);
+    if (meliPrice) await ensureAutoComparison(product.id, { name, brand: brand.name, categoryId, categoryName: category.name, price: meliPrice });
+  }
+
   revalidatePath("/admin/produtos/");
+  revalidatePath("/blog");
+  revalidatePath("/comparar");
   revalidatePath("/");
   redirect("/admin/produtos/");
 }
