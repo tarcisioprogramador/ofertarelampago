@@ -16,6 +16,7 @@ const NAV = [
   { href: "/admin/cupons", label: "Cupons" },
   { href: "/admin/afiliados", label: "Links de afiliado" },
   { href: "/admin/importar", label: "Importar do ML" },
+  { href: "/admin/assistente-ia", label: "Assistente IA" },
   { href: "/admin/autores", label: "Autores" },
   { href: "/admin/alertas", label: "Alertas" },
 ];

@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { prisma } from "./db";
 import { slugify, affiliateUrl, detectStore } from "./utils";
 import { fetchMeliProduct } from "./meli-importer";
+import { generateProductDraftWithAi, type AiProductDraft } from "./ai";
 import { isAdmin } from "./admin";
 
 async function guard() {
@@ -58,6 +59,30 @@ async function setProductTags(productId: string, raw: string | null) {
   }
 }
 
+/** Salva tags, galeria, atributos dinâmicos e prós/contras de um produto (usado por create/update/IA). */
+async function saveProductExtras(productId: string, categoryId: string, data: FormData) {
+  await setProductTags(productId, pick(data, "tags"));
+  await setProductGallery(productId, pick(data, "galleryImages"));
+
+  const defs = await prisma.attributeDefinition.findMany({ where: { categoryId } });
+  for (const def of defs) {
+    const value = pick(data, `attr_${def.key}`);
+    if (value) {
+      await prisma.productAttributeValue.upsert({
+        where: { productId_attributeId: { productId, attributeId: def.id } },
+        create: { productId, attributeId: def.id, value },
+        update: { value },
+      });
+    }
+  }
+
+  await prisma.prosCons.deleteMany({ where: { productId } });
+  const pros = (pick(data, "pros") ?? "").split("\n").map((s) => s.trim()).filter(Boolean);
+  const cons = (pick(data, "cons") ?? "").split("\n").map((s) => s.trim()).filter(Boolean);
+  for (const [i, text] of pros.entries()) await prisma.prosCons.create({ data: { productId, type: "PRO", text, order: i } });
+  for (const [i, text] of cons.entries()) await prisma.prosCons.create({ data: { productId, type: "CON", text, order: i } });
+}
+
 // ─── Produtos ───────────────────────────────────────────────────────────────
 
 export async function createProduct(data: FormData) {
@@ -85,27 +110,7 @@ export async function createProduct(data: FormData) {
       lastContentUpdate: new Date(),
     },
   });
-  await setProductTags(product.id, pick(data, "tags"));
-  await setProductGallery(product.id, pick(data, "galleryImages"));
-
-  // Atributos dinâmicos
-  const defs = await prisma.attributeDefinition.findMany({ where: { categoryId } });
-  for (const def of defs) {
-    const value = pick(data, `attr_${def.key}`);
-    if (value) {
-      await prisma.productAttributeValue.upsert({
-        where: { productId_attributeId: { productId: product.id, attributeId: def.id } },
-        create: { productId: product.id, attributeId: def.id, value },
-        update: { value },
-      });
-    }
-  }
-
-  // Prós e contras
-  const pros = (pick(data, "pros") ?? "").split("\n").map((s) => s.trim()).filter(Boolean);
-  const cons = (pick(data, "cons") ?? "").split("\n").map((s) => s.trim()).filter(Boolean);
-  for (const [i, text] of pros.entries()) await prisma.prosCons.create({ data: { productId: product.id, type: "PRO", text, order: i } });
-  for (const [i, text] of cons.entries()) await prisma.prosCons.create({ data: { productId: product.id, type: "CON", text, order: i } });
+  await saveProductExtras(product.id, categoryId, data);
 
   revalidatePath("/admin/produtos/");
   revalidatePath("/");
@@ -138,26 +143,7 @@ export async function updateProduct(id: string, data: FormData) {
       lastContentUpdate: new Date(),
     },
   });
-  await setProductTags(id, pick(data, "tags"));
-  await setProductGallery(id, pick(data, "galleryImages"));
-
-  const defs = await prisma.attributeDefinition.findMany({ where: { categoryId } });
-  for (const def of defs) {
-    const value = pick(data, `attr_${def.key}`);
-    if (value) {
-      await prisma.productAttributeValue.upsert({
-        where: { productId_attributeId: { productId: id, attributeId: def.id } },
-        create: { productId: id, attributeId: def.id, value },
-        update: { value },
-      });
-    }
-  }
-
-  await prisma.prosCons.deleteMany({ where: { productId: id } });
-  const pros = (pick(data, "pros") ?? "").split("\n").map((s) => s.trim()).filter(Boolean);
-  const cons = (pick(data, "cons") ?? "").split("\n").map((s) => s.trim()).filter(Boolean);
-  for (const [i, text] of pros.entries()) await prisma.prosCons.create({ data: { productId: id, type: "PRO", text, order: i } });
-  for (const [i, text] of cons.entries()) await prisma.prosCons.create({ data: { productId: id, type: "CON", text, order: i } });
+  await saveProductExtras(id, categoryId, data);
 
   revalidatePath("/admin/produtos/");
   revalidatePath("/");
@@ -781,6 +767,114 @@ export async function generateAffiliateLink(data: FormData): Promise<AffiliateLi
     tracked,
     message: tracked ? "Tracking de afiliado aplicado com sucesso!" : "Esta loja ainda não tem tracking configurado — o link foi mantido como está.",
   };
+}
+
+// ─── Assistente IA ──────────────────────────────────────────────────────────
+
+export type AiDraftResult =
+  | { ok: true; draft: AiProductDraft; meli?: { price: number; oldPrice: number | null; productUrl: string } | null }
+  | { ok: false; error: string };
+
+/**
+ * Gera um rascunho completo de página de produto usando IA, a partir de um link
+ * do Mercado Livre (ou descrição do produto) + fotos fornecidas pelo admin.
+ */
+export async function generateProductDraft(data: FormData): Promise<AiDraftResult> {
+  await guard();
+  const link = pick(data, "link") ?? "";
+  const description = pick(data, "description") ?? "";
+  const photos = (pick(data, "photos") ?? "")
+    .split(/\r?\n/)
+    .map((s) => s.trim())
+    .filter((u) => u.startsWith("http"));
+  const categoryId = pick(data, "categoryId");
+
+  if (!categoryId) return { ok: false, error: "Selecione a categoria do produto." };
+  if (!link && !description && !photos.length) {
+    return { ok: false, error: "Cole o link do produto ou descreva o item (e, se quiser, as fotos)." };
+  }
+
+  const category = await prisma.category.findUnique({
+    where: { id: categoryId },
+    include: { attributeDefs: { orderBy: { order: "asc" } } },
+  });
+  if (!category) return { ok: false, error: "Categoria não encontrada." };
+
+  // Se for link do Mercado Livre, extrai dados reais (nome, preço, imagem)
+  let meli: { price: number; oldPrice: number | null; productUrl: string } | null = null;
+  let meliData = null;
+  if (link) {
+    meliData = await fetchMeliProduct(link);
+    if (meliData) meli = { price: meliData.price, oldPrice: meliData.oldPrice, productUrl: meliData.productUrl };
+  }
+
+  try {
+    const draft = await generateProductDraftWithAi({
+      link,
+      description,
+      photos,
+      category: { name: category.name, attributeDefs: category.attributeDefs.map((a) => ({ key: a.key, name: a.name })) },
+      meliData,
+    });
+    return { ok: true, draft, meli };
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : "Erro ao gerar com a IA. Tente novamente." };
+  }
+}
+
+/** Cria o produto a partir do rascunho gerado pela IA (com oferta do ML quando houver). */
+export async function createProductFromDraft(data: FormData) {
+  await guard();
+  const name = pick(data, "name");
+  const categoryId = pick(data, "categoryId");
+  const brandId = pick(data, "brandId");
+  if (!name || !categoryId || !brandId) throw new Error("Nome, categoria e marca são obrigatórios.");
+
+  const slug = pick(data, "slug") || slugify(name);
+  const product = await prisma.product.create({
+    data: {
+      name,
+      slug,
+      brandId,
+      categoryId,
+      summary: pick(data, "summary"),
+      description: pick(data, "description"),
+      imageUrl: pick(data, "imageUrl") ?? "/images/products/celulares.svg",
+      releaseDate: pick(data, "releaseDate") ? new Date(pick(data, "releaseDate")!) : null,
+      rating: pickNum(data, "rating") ?? 0,
+      reviewCount: pickNum(data, "reviewCount") ?? 0,
+      featured: pickBool(data, "featured"),
+      isNew: pickBool(data, "isNew"),
+      lastContentUpdate: new Date(),
+    },
+  });
+  await saveProductExtras(product.id, categoryId, data);
+
+  // Oferta (quando vier do link do Mercado Livre)
+  const meliUrl = pick(data, "meliUrl");
+  const meliPrice = pickNum(data, "meliPrice");
+  const meliOldPrice = pickNum(data, "meliOldPrice");
+  const store = await prisma.store.findUnique({ where: { slug: "mercado-livre" } });
+  if (meliUrl && meliPrice && store) {
+    await prisma.offer.create({
+      data: {
+        productId: product.id,
+        storeId: store.id,
+        price: meliPrice,
+        oldPrice: meliOldPrice,
+        url: meliUrl,
+        shipping: "Frete grátis",
+        isBest: true,
+      },
+    });
+    await prisma.priceHistory.create({
+      data: { productId: product.id, storeId: store.id, price: meliPrice, recordedAt: new Date() },
+    });
+  }
+
+  revalidatePath("/admin/produtos/");
+  revalidatePath("/");
+  redirect("/admin/produtos/");
 }
 
 // ─── Alertas ─────────────────────────────────────────────────────────────────
