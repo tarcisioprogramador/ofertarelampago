@@ -135,7 +135,7 @@ Formato EXATO de resposta (JSON apenas):
     body: JSON.stringify({
       model,
       temperature: 0.7,
-      max_tokens: 2200,
+      max_tokens: 4000,
       messages: [
         { role: "system", content: system },
         { role: "user", content: user },
