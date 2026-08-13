@@ -1,7 +1,7 @@
 import Link from "next/link";
 import Image from "next/image";
 import { notFound } from "next/navigation";
-import { ArrowRight, BadgePercent, BellRing, CalendarDays, Check, Copy, GitCompareArrows, Minus, Plus, ShoppingBag, Star, Truck, X, Zap } from "lucide-react";
+import { ArrowRight, ArrowUpRight, BadgePercent, BellRing, CalendarDays, Check, Copy, GitCompareArrows, Minus, Plus, ShoppingBag, Star, Truck, X, Zap } from "lucide-react";
 import { prisma } from "@/lib/db";
 import { buildMetadata } from "@/lib/seo";
 import { productJsonLd } from "@/lib/jsonld";
@@ -242,6 +242,16 @@ export default async function ProductPage({ params }: Props) {
                   <a href="#ofertas" className="inline-flex items-center gap-2 rounded-xl bg-brand-500 px-5 py-3 text-sm font-bold text-white transition-colors hover:bg-brand-600">
                     Ver todas as ofertas <ArrowRight className="size-4" aria-hidden />
                   </a>
+                  {bestOffer.url && (
+                    <a
+                      href={bestOffer.url}
+                      target="_blank"
+                      rel="noopener nofollow"
+                      className="inline-flex items-center gap-2 rounded-xl border border-ink-300 bg-white px-5 py-3 text-sm font-bold text-ink-800 transition-colors hover:border-brand-400 hover:text-brand-600"
+                    >
+                      <ShoppingBag className="size-4" aria-hidden /> Comprar
+                    </a>
+                  )}
                   <a href="#alerta-preco" className="inline-flex items-center gap-2 rounded-xl border border-ink-300 bg-white px-5 py-3 text-sm font-bold text-ink-800 transition-colors hover:border-brand-400 hover:text-brand-600">
                     <BellRing className="size-4" aria-hidden /> Criar alerta de preço
                   </a>
@@ -303,9 +313,20 @@ export default async function ProductPage({ params }: Props) {
                         <td className="px-5 py-4 text-xs text-ink-400">{formatDate(o.updatedAt)}</td>
                         <td className="px-5 py-4 text-right">
                           {o.active ? (
-                            <span className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-100 px-3.5 py-2 text-xs font-bold text-emerald-700">
-                              Ativa
-                            </span>
+                            o.url ? (
+                              <a
+                                href={o.url}
+                                target="_blank"
+                                rel="noopener nofollow"
+                                className="inline-flex items-center gap-1.5 rounded-lg bg-ink-950 px-3.5 py-2 text-xs font-bold text-white transition-colors hover:bg-brand-600"
+                              >
+                                Ver oferta <ArrowUpRight className="size-3.5" aria-hidden />
+                              </a>
+                            ) : (
+                              <span className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-100 px-3.5 py-2 text-xs font-bold text-emerald-700">
+                                Ativa
+                              </span>
+                            )
                           ) : (
                             <span className="inline-flex items-center gap-1.5 rounded-lg bg-ink-100 px-3.5 py-2 text-xs font-bold text-ink-400">
                               Encerrada
@@ -518,7 +539,17 @@ export default async function ProductPage({ params }: Props) {
                 <div className="flex justify-between gap-3"><dt className="text-ink-400">Preço atual</dt><dd className="font-bold text-brand-400">{bestOffer ? formatBRL(bestOffer.price, 0) : "—"}</dd></div>
                 <div className="flex justify-between gap-3"><dt className="text-ink-400">Em relação à média</dt><dd className="font-bold">{bestOffer && average ? `${bestOffer.price <= average ? "▼" : "▲"} ${Math.abs(Math.round(((bestOffer.price - average) / average) * 100))}%` : "—"}</dd></div>
               </dl>
-              {!bestOffer && (
+              {bestOffer?.url ? (
+                <a
+                  href={bestOffer.url}
+                  target="_blank"
+                  rel="noopener nofollow"
+                  className="mt-4 flex items-center justify-center gap-2 rounded-xl bg-brand-500 px-4 py-2.5 text-sm font-bold text-white transition-colors hover:bg-brand-600"
+                >
+                  <ShoppingBag className="size-4" aria-hidden />
+                  Comprar
+                </a>
+              ) : !bestOffer ? (
                 <a
                   href={`/comparar/?add=${prod.slug}`}
                   className="mt-2 flex items-center justify-center gap-2 rounded-xl border border-white/20 px-4 py-2.5 text-sm font-bold text-white transition-colors hover:bg-white/10"
@@ -526,7 +557,7 @@ export default async function ProductPage({ params }: Props) {
                   <GitCompareArrows className="size-4" aria-hidden />
                   Comparar com outros modelos
                 </a>
-              )}
+              ) : null}
             </div>
           </aside>
         </div>
